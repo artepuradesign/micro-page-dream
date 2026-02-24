@@ -1,3 +1,4 @@
+// Toaster component
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, toast } from "sonner"
 import { X } from "lucide-react"

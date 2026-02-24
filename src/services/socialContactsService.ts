@@ -47,7 +47,7 @@ export const socialContactsService = {
         keys.map(key => apiRequest<any>(`/system-config/get?key=${key}`))
       );
 
-      const configMap: Record<string, string> = {};
+      const configMap: Record<string, unknown> = {};
       results.forEach((result, i) => {
         if (result.status === 'fulfilled' && result.value?.success && result.value?.data) {
           configMap[keys[i]] = result.value.data.config_value;
@@ -56,17 +56,23 @@ export const socialContactsService = {
 
       const hasAnyData = Object.keys(configMap).length > 0;
 
-      const parseBool = (val: string | undefined, fallback: boolean) => {
-        if (val === undefined) return fallback;
-        return val === 'true' || val === '1';
+      const parseBool = (val: unknown, fallback: boolean) => {
+        if (val === undefined || val === null || val === '') return fallback;
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'number') return val === 1;
+        if (typeof val === 'string') {
+          const normalized = val.trim().toLowerCase();
+          return normalized === 'true' || normalized === '1';
+        }
+        return fallback;
       };
 
       cachedContacts = {
-        whatsapp_number: configMap['contact_whatsapp_number'] || DEFAULTS.whatsapp_number,
-        whatsapp_message: configMap['contact_whatsapp_message'] || DEFAULTS.whatsapp_message,
-        telegram_username: configMap['contact_telegram_username'] || DEFAULTS.telegram_username,
-        instagram_username: configMap['contact_instagram_username'] || DEFAULTS.instagram_username,
-        tiktok_username: configMap['contact_tiktok_username'] || DEFAULTS.tiktok_username,
+        whatsapp_number: String(configMap['contact_whatsapp_number'] ?? DEFAULTS.whatsapp_number),
+        whatsapp_message: String(configMap['contact_whatsapp_message'] ?? DEFAULTS.whatsapp_message),
+        telegram_username: String(configMap['contact_telegram_username'] ?? DEFAULTS.telegram_username),
+        instagram_username: String(configMap['contact_instagram_username'] ?? DEFAULTS.instagram_username),
+        tiktok_username: String(configMap['contact_tiktok_username'] ?? DEFAULTS.tiktok_username),
         whatsapp_enabled: parseBool(configMap['contact_whatsapp_enabled'], DEFAULTS.whatsapp_enabled),
         telegram_enabled: parseBool(configMap['contact_telegram_enabled'], DEFAULTS.telegram_enabled),
         instagram_enabled: parseBool(configMap['contact_instagram_enabled'], DEFAULTS.instagram_enabled),

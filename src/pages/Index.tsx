@@ -7,11 +7,9 @@ import SimpleFooter from "@/components/SimpleFooter";
 import ResponsiveHowItWorksSection from "@/components/sections/ResponsiveHowItWorksSection";
 import HomeCarouselSection from "@/components/sections/HomeCarouselSection";
 import PageLayout from "@/components/layout/PageLayout";
-
 import SocialMediaButtons from "@/components/SocialMediaButtons";
 
 const Index = () => {
-  // Initialize AOS when component mounts
   useEffect(() => {
     if (window.AOS) {
       window.AOS.init({
@@ -23,8 +21,6 @@ const Index = () => {
     }
   }, []);
 
-  // Remover o redirecionamento automático - usuário logado pode navegar pelo site
-
   return (
     <PageLayout
       variant="auth"
@@ -35,16 +31,9 @@ const Index = () => {
       <MenuSuperior />
 
       <main className="w-full overflow-x-hidden">
-        {/* Destaques */}
         <HomeCarouselSection />
-
-        {/* Como funciona */}
         <ResponsiveHowItWorksSection />
-
-        {/* Planos */}
         <PublicPlansSection />
-
-        {/* Depoimentos */}
         <Testimonials />
       </main>
 
@@ -55,4 +44,3 @@ const Index = () => {
 };
 
 export default Index;
-

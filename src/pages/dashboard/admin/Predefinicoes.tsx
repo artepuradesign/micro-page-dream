@@ -187,10 +187,7 @@ const Predefinicoes = () => {
     return (
       <div key={config.config_key} className="py-3 border-b border-border last:border-0 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {fieldIcon}
-            <p className="text-sm font-medium truncate">{config.description || config.config_key}</p>
-          </div>
+          <p className="text-sm font-medium truncate">{config.description || config.config_key}</p>
           {changed && (
             <Button
               size="sm"
@@ -245,7 +242,7 @@ const Predefinicoes = () => {
   const categories = Object.keys(groupedConfigs);
 
   return (
-    <div className="space-y-4 relative z-10 px-1 sm:px-0 max-w-3xl mx-auto">
+    <div className="space-y-4 relative z-10 px-1 sm:px-0 max-w-4xl mx-auto">
       {/* Header */}
       <Card>
         <CardHeader className="p-3 sm:p-6">

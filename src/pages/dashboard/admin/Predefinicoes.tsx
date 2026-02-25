@@ -110,14 +110,20 @@ const Predefinicoes = () => {
 
   const hasAnyChange = configs.some((c) => String(c.config_value) !== editedValues[c.config_key]);
 
-  // Find the matching boolean toggle for a text field (e.g. contact_telegram_username -> contact_telegram_enabled)
+  // Only show inline toggles for WhatsApp, Telegram and Instagram
+  const INLINE_TOGGLE_KEYS = [
+    'contact_whatsapp_enabled',
+    'contact_telegram_enabled',
+    'contact_instagram_enabled',
+  ];
+
   const findRelatedToggle = (key: string, allConfigs: SystemConfigItem[]): SystemConfigItem | undefined => {
-    // Extract base name: contact_telegram_username -> contact_telegram
     const parts = key.split('_');
-    // Try removing last segment and appending _enabled
     const baseName = parts.slice(0, -1).join('_');
+    const toggleKey = `${baseName}_enabled`;
+    if (!INLINE_TOGGLE_KEYS.includes(toggleKey)) return undefined;
     return allConfigs.find(
-      (c) => c.config_type === 'boolean' && c.config_key === `${baseName}_enabled`
+      (c) => c.config_type === 'boolean' && c.config_key === toggleKey
     );
   };
 
@@ -240,8 +246,8 @@ const Predefinicoes = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold">Predefinições</h1>
-            <p className="text-xs text-muted-foreground">Gerencie as configurações</p>
+            <h1 className="text-lg sm:text-xl font-bold">Configurações do Sistema</h1>
+            <p className="text-xs text-muted-foreground">Gerencie as configurações globais da aplicação</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

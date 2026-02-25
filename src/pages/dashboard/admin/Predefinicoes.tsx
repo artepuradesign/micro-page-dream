@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -108,244 +109,213 @@ const Predefinicoes = () => {
     return original && String(original.config_value) !== editedValues[key];
   };
 
-  const hasAnyChange = configs.some((c) => String(c.config_value) !== editedValues[c.config_key]);
+  const renderConfigField = (config: SystemConfigItem) => {
+    const value = editedValues[config.config_key] ?? '';
+    const changed = isChanged(config.config_key);
 
-  // Only show inline toggles for WhatsApp, Telegram and Instagram
-  const INLINE_TOGGLE_KEYS = [
-    'contact_whatsapp_enabled',
-    'contact_telegram_enabled',
-    'contact_instagram_enabled',
-  ];
+    if (config.config_type === 'boolean') {
+      return (
+        <div
+          key={config.config_key}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <Label className="text-sm font-semibold break-words">{config.description || config.config_key}</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">{config.config_key}</p>
+          </div>
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <Switch
+              checked={value === 'true' || value === '1'}
+              onCheckedChange={(checked) => {
+                const newVal = checked ? 'true' : 'false';
+                setEditedValues((prev) => ({ ...prev, [config.config_key]: newVal }));
+                // Auto-save booleans
+                setSaving(config.config_key);
+                systemConfigAdminService.updateConfig(config.config_key, newVal, config.config_type)
+                  .then(() => {
+                    toast.success(`"${config.config_key}" atualizada!`);
+                    setConfigs((prev) =>
+                      prev.map((c) => c.config_key === config.config_key ? { ...c, config_value: newVal } : c)
+                    );
+                  })
+                  .catch(() => toast.error('Erro ao salvar'))
+                  .finally(() => setSaving(null));
+              }}
+              disabled={saving === config.config_key}
+            />
+            {saving === config.config_key && <Loader2 className="h-3 w-3 animate-spin" />}
+          </div>
+        </div>
+      );
+    }
 
-  const findRelatedToggle = (key: string, allConfigs: SystemConfigItem[]): SystemConfigItem | undefined => {
-    const parts = key.split('_');
-    const baseName = parts.slice(0, -1).join('_');
-    const toggleKey = `${baseName}_enabled`;
-    if (!INLINE_TOGGLE_KEYS.includes(toggleKey)) return undefined;
-    return allConfigs.find(
-      (c) => c.config_type === 'boolean' && c.config_key === toggleKey
-    );
-  };
-
-  const renderToggleInline = (toggleConfig: SystemConfigItem) => {
-    const toggleValue = editedValues[toggleConfig.config_key] ?? '';
-    const isEnabled = toggleValue === 'true' || toggleValue === '1';
     return (
-      <div className="flex items-center gap-1.5 flex-shrink-0" title={isEnabled ? 'Ativado' : 'Desativado'}>
-        {saving === toggleConfig.config_key && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-        <Switch
-          checked={isEnabled}
-          onCheckedChange={(checked) => {
-            const newVal = checked ? 'true' : 'false';
-            setEditedValues((prev) => ({ ...prev, [toggleConfig.config_key]: newVal }));
-            setSaving(toggleConfig.config_key);
-            systemConfigAdminService.updateConfig(toggleConfig.config_key, newVal, toggleConfig.config_type)
-              .then(() => {
-                toast.success(`"${toggleConfig.config_key}" atualizada!`);
-                setConfigs((prev) =>
-                  prev.map((c) => c.config_key === toggleConfig.config_key ? { ...c, config_value: newVal } : c)
-                );
-              })
-              .catch(() => toast.error('Erro ao salvar'))
-              .finally(() => setSaving(null));
-          }}
-          disabled={saving === toggleConfig.config_key}
-          className="scale-90"
+      <div
+        key={config.config_key}
+        className="p-3 sm:p-4 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors space-y-2"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <Label className="text-sm font-semibold break-words">{config.description || config.config_key}</Label>
+            <p className="text-xs text-muted-foreground font-mono truncate">{config.config_key}</p>
+          </div>
+          {changed && (
+            <Button
+              size="sm"
+              className="self-end sm:self-auto shrink-0"
+              onClick={() => handleSave(config.config_key, config.config_type)}
+              disabled={saving === config.config_key}
+            >
+              {saving === config.config_key ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Save className="h-3 w-3 mr-1" />
+              )}
+              Salvar
+            </Button>
+          )}
+        </div>
+        <Input
+          value={value}
+          onChange={(e) =>
+            setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
+          }
+          type={config.config_type === 'number' ? 'number' : 'text'}
+          className={changed ? 'border-primary ring-1 ring-primary/20' : ''}
         />
       </div>
     );
   };
 
-  // Render grouped configs: text fields get their boolean toggle inline
-  const renderCategoryConfigs = (categoryConfigs: SystemConfigItem[]) => {
-    // Collect keys of booleans that are paired with a text field so we skip rendering them standalone
-    const pairedBooleanKeys = new Set<string>();
-    categoryConfigs.forEach((c) => {
-      if (c.config_type !== 'boolean') {
-        const toggle = findRelatedToggle(c.config_key, categoryConfigs);
-        if (toggle) pairedBooleanKeys.add(toggle.config_key);
-      }
-    });
-
-    return categoryConfigs
-      .filter((c) => !pairedBooleanKeys.has(c.config_key)) // skip paired booleans
-      .map((config) => {
-        const value = editedValues[config.config_key] ?? '';
-        const changed = isChanged(config.config_key);
-
-        // Standalone boolean (no paired text field)
-        if (config.config_type === 'boolean') {
-          return (
-            <div
-              key={config.config_key}
-              className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-tight">{config.description || config.config_key}</p>
-              </div>
-              {renderToggleInline(config)}
-            </div>
-          );
-        }
-
-        // Text/number field — check for paired toggle
-        const relatedToggle = findRelatedToggle(config.config_key, categoryConfigs);
-
-        return (
-          <div
-            key={config.config_key}
-            className="py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors space-y-1.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium leading-tight flex-1 min-w-0">{config.description || config.config_key}</p>
-              {changed && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs text-primary hover:text-primary flex-shrink-0"
-                  onClick={() => handleSave(config.config_key, config.config_type)}
-                  disabled={saving === config.config_key}
-                >
-                  {saving === config.config_key ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Save className="h-3 w-3 mr-1" />
-                  )}
-                  Salvar
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                value={value}
-                onChange={(e) =>
-                  setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
-                }
-                type={config.config_type === 'number' ? 'number' : 'text'}
-                className={`h-8 text-sm flex-1 ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
-              />
-              {relatedToggle && renderToggleInline(relatedToggle)}
-            </div>
-          </div>
-        );
-      });
-  };
-
   return (
-    <div className="space-y-4 relative z-10 px-1 sm:px-0 pb-20">
-      {/* Header compacto */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/dashboard')}
-            className="rounded-full h-8 w-8 flex-shrink-0"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold">Configurações do Sistema</h1>
-            <p className="text-xs text-muted-foreground">Gerencie as configurações globais da aplicação</p>
+    <div className="space-y-4 sm:space-y-6 relative z-10 px-1 sm:px-0">
+      {/* Header - mesmo padrão da Carteira */}
+      <Card>
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                <span className="truncate">Predefinições do Sistema</span>
+                {error && (
+                  <span className="text-[10px] sm:text-xs bg-red-100 text-red-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded dark:bg-red-900 dark:text-red-300 flex-shrink-0">
+                    Erro
+                  </span>
+                )}
+              </CardTitle>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 hidden sm:block">
+                {error ? 'Erro ao carregar dados' : 'Gerencie as configurações globais da plataforma'}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <Badge variant="secondary" className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 ${error ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"}`}>
+                {error ? 'Erro' : `${configs.length} configs`}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchConfigs}
+                disabled={loading}
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                title="Recarregar"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveAll}
+                disabled={saving === 'all' || loading}
+                className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                title="Salvar todas as alterações"
+              >
+                {saving === 'all' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5 sm:mr-1" />
+                    <span className="hidden sm:inline">Salvar Tudo</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => navigate('/dashboard')}
+                className="rounded-full h-9 w-9"
+                aria-label="Voltar"
+                title="Voltar"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {!loading && !error && (
-            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-              {configs.length} configs
-            </Badge>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={fetchConfigs}
-            disabled={loading}
-            className="h-8 w-8"
-            title="Recarregar"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+        </CardHeader>
+      </Card>
 
-      {/* Loading */}
+      {/* Loading state */}
       {loading && (
         <Card>
           <CardContent className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="ml-3 text-sm text-muted-foreground">Carregando...</span>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground">Carregando configurações...</span>
           </CardContent>
         </Card>
       )}
 
-      {/* Error */}
+      {/* Error state */}
       {!loading && error && (
         <Card>
-          <CardContent className="text-center py-12 space-y-3">
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchConfigs}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          <CardContent className="text-center py-12 space-y-4">
+            <p className="text-muted-foreground">{error}</p>
+            <Button variant="outline" onClick={fetchConfigs}>
+              <RefreshCw className="h-4 w-4 mr-2" />
               Tentar novamente
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Tabs */}
+      {/* Tabs por categoria */}
       {!loading && !error && categories.length > 0 && (
         <Tabs defaultValue={categories[0]} className="w-full">
-          <div className="overflow-x-auto -mx-1 px-1 pb-1">
-            <TabsList className="inline-flex h-9 gap-0.5 bg-muted/50 p-0.5">
-              {categories.map((cat) => {
-                const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-3.5 w-3.5" /> };
-                return (
-                  <TabsTrigger
-                    key={cat}
-                    value={cat}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-                  >
-                    {info.icon}
-                    <span className="hidden sm:inline">{info.label}</span>
-                    <span className="sm:hidden">{info.label.slice(0, 3)}</span>
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 ml-0.5">
-                      {groupedConfigs[cat]?.length || 0}
-                    </Badge>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </div>
+          <Card className="mb-4">
+            <CardContent className="p-2 sm:p-3">
+              <TabsList className="flex flex-wrap h-auto gap-1 bg-transparent w-full justify-start">
+                {categories.map((cat) => {
+                  const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-4 w-4" /> };
+                  return (
+                    <TabsTrigger key={cat} value={cat} className="flex items-center gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      {info.icon}
+                      <span>{info.label}</span>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1 h-4">
+                        {groupedConfigs[cat]?.length || 0}
+                      </Badge>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </CardContent>
+          </Card>
 
-          {categories.map((cat) => (
-            <TabsContent key={cat} value={cat} className="mt-3">
-              <Card>
-                <CardContent className="p-2 sm:p-3 divide-y divide-border/50">
-                  {renderCategoryConfigs(groupedConfigs[cat])}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+          {categories.map((cat) => {
+            const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-4 w-4" /> };
+            return (
+              <TabsContent key={cat} value={cat} className="mt-0">
+                <Card>
+                  <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
+                    <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                      {info.icon}
+                      {info.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 sm:p-6 pt-0 space-y-2 sm:space-y-3">
+                    {groupedConfigs[cat].map(renderConfigField)}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            );
+          })}
         </Tabs>
-      )}
-
-      {/* Botão flutuante Salvar Tudo */}
-      {hasAnyChange && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={handleSaveAll}
-            disabled={saving === 'all'}
-            className="h-12 px-5 rounded-full shadow-lg hover:shadow-xl transition-all gap-2"
-            size="lg"
-          >
-            {saving === 'all' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            Salvar Tudo
-          </Button>
-        </div>
       )}
     </div>
   );

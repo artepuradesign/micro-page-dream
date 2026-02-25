@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Settings, Save, Loader2, Globe, MessageCircle, Shield, DollarSign, Users, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Settings, Save, Loader2, Globe, MessageCircle, Shield, DollarSign, Users, RefreshCw, ArrowLeft, Instagram, Send, Music, Phone } from 'lucide-react';
 import { systemConfigAdminService, SystemConfigItem } from '@/services/systemConfigAdminService';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,6 +20,20 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: React.ReactNode }> 
   security: { label: 'Segurança', icon: <Shield className="h-4 w-4" /> },
   financial: { label: 'Financeiro', icon: <DollarSign className="h-4 w-4" /> },
   referral: { label: 'Indicações', icon: <Users className="h-4 w-4" /> },
+};
+
+// Icons for specific config keys
+const getFieldIcon = (key: string): React.ReactNode | null => {
+  if (key.includes('instagram')) return <Instagram className="h-4 w-4 text-pink-500" />;
+  if (key.includes('telegram')) return <Send className="h-4 w-4 text-blue-500" />;
+  if (key.includes('tiktok')) return <Music className="h-4 w-4 text-foreground" />;
+  if (key.includes('whatsapp')) return <Phone className="h-4 w-4 text-green-500" />;
+  return null;
+};
+
+// Check if field should use textarea
+const isMultilineField = (key: string): boolean => {
+  return key.includes('whatsapp_message') || key.includes('default_message');
 };
 
 const Predefinicoes = () => {
@@ -113,7 +128,6 @@ const Predefinicoes = () => {
     return original && String(original.config_value) !== editedValues[key];
   };
 
-  // Group configs: pair _enabled booleans with their parent field
   const groupedConfigs = configs.reduce<Record<string, SystemConfigItem[]>>((acc, config) => {
     const cat = config.category || 'general';
     if (!acc[cat]) acc[cat] = [];
@@ -121,12 +135,10 @@ const Predefinicoes = () => {
     return acc;
   }, {});
 
-  // Find the matching _enabled toggle for a text config
   const findEnabledToggle = (key: string, categoryConfigs: SystemConfigItem[]): SystemConfigItem | undefined => {
     return categoryConfigs.find(c => c.config_key === `${key}_enabled` && c.config_type === 'boolean');
   };
 
-  // Check if this config is an _enabled that's already paired with a parent
   const isLinkedEnabled = (key: string, categoryConfigs: SystemConfigItem[]): boolean => {
     if (!key.endsWith('_enabled')) return false;
     const parentKey = key.replace(/_enabled$/, '');
@@ -137,19 +149,21 @@ const Predefinicoes = () => {
     const value = editedValues[config.config_key] ?? '';
     const changed = isChanged(config.config_key);
 
-    // Skip _enabled booleans that are paired with a text field
     if (isLinkedEnabled(config.config_key, categoryConfigs)) {
       return null;
     }
 
-    // Standalone boolean (not paired)
+    const fieldIcon = getFieldIcon(config.config_key);
+
+    // Standalone boolean
     if (config.config_type === 'boolean') {
       return (
         <div
           key={config.config_key}
           className="flex items-center justify-between gap-3 py-3 border-b border-border last:border-0"
         >
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            {fieldIcon}
             <p className="text-sm font-medium truncate">{config.description || config.config_key}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -164,15 +178,19 @@ const Predefinicoes = () => {
       );
     }
 
-    // Text/number field — check for paired _enabled toggle
+    // Text/number field
     const enabledToggle = findEnabledToggle(config.config_key, categoryConfigs);
     const toggleValue = enabledToggle ? (editedValues[enabledToggle.config_key] ?? '') : null;
     const isEnabled = toggleValue === 'true' || toggleValue === '1';
+    const multiline = isMultilineField(config.config_key);
 
     return (
       <div key={config.config_key} className="py-3 border-b border-border last:border-0 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium truncate">{config.description || config.config_key}</p>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {fieldIcon}
+            <p className="text-sm font-medium truncate">{config.description || config.config_key}</p>
+          </div>
           {changed && (
             <Button
               size="sm"
@@ -189,17 +207,28 @@ const Predefinicoes = () => {
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            value={value}
-            onChange={(e) =>
-              setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
-            }
-            type={config.config_type === 'number' ? 'number' : 'text'}
-            className={`flex-1 h-9 text-sm ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
-          />
+        <div className="flex items-start gap-2">
+          {multiline ? (
+            <Textarea
+              value={value}
+              onChange={(e) =>
+                setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
+              }
+              rows={2}
+              className={`flex-1 text-sm resize-none ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
+            />
+          ) : (
+            <Input
+              value={value}
+              onChange={(e) =>
+                setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
+              }
+              type={config.config_type === 'number' ? 'number' : 'text'}
+              className={`flex-1 h-9 text-sm ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
+            />
+          )}
           {enabledToggle && (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 pt-1.5">
               {saving === enabledToggle.config_key && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
               <Switch
                 checked={isEnabled}
@@ -236,9 +265,6 @@ const Predefinicoes = () => {
               </p>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              <Badge variant="secondary" className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 ${error ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"}`}>
-                {error ? 'Erro' : `${configs.length} configs`}
-              </Badge>
               <Button
                 variant="ghost"
                 size="sm"
@@ -248,22 +274,6 @@ const Predefinicoes = () => {
                 title="Recarregar"
               >
                 <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSaveAll}
-                disabled={saving === 'all' || loading}
-                className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm"
-                title="Salvar todas as alterações"
-              >
-                {saving === 'all' ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <Save className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">Salvar Tudo</span>
-                  </>
-                )}
               </Button>
               <Button
                 variant="outline"
@@ -302,44 +312,63 @@ const Predefinicoes = () => {
 
       {/* Content */}
       {!loading && !error && categories.length > 0 && (
-        <Tabs defaultValue={categories[0]} className="w-full">
-          <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 rounded-lg w-full justify-start">
+        <>
+          <Tabs defaultValue={categories[0]} className="w-full">
+            <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 rounded-lg w-full justify-start">
+              {categories.map((cat) => {
+                const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-4 w-4" /> };
+                return (
+                  <TabsTrigger
+                    key={cat}
+                    value={cat}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  >
+                    {info.icon}
+                    <span>{info.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+
             {categories.map((cat) => {
               const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-4 w-4" /> };
+              const catConfigs = groupedConfigs[cat];
               return (
-                <TabsTrigger
-                  key={cat}
-                  value={cat}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-                >
-                  {info.icon}
-                  <span>{info.label}</span>
-                </TabsTrigger>
+                <TabsContent key={cat} value={cat} className="mt-3">
+                  <Card>
+                    <CardHeader className="px-4 py-3 border-b border-border">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        {info.icon}
+                        {info.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 py-1">
+                      {catConfigs.map((c) => renderConfigField(c, catConfigs))}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               );
             })}
-          </TabsList>
+          </Tabs>
 
-          {categories.map((cat) => {
-            const info = CATEGORY_LABELS[cat] || { label: cat, icon: <Settings className="h-4 w-4" /> };
-            const catConfigs = groupedConfigs[cat];
-            return (
-              <TabsContent key={cat} value={cat} className="mt-3">
-                <Card>
-                  <CardHeader className="px-4 py-3 border-b border-border">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      {info.icon}
-                      {info.label}
-                      <Badge variant="secondary" className="text-[10px] ml-auto">{catConfigs.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 py-1">
-                    {catConfigs.map((c) => renderConfigField(c, catConfigs))}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+          {/* Save All button at the bottom */}
+          <Card>
+            <CardContent className="p-4">
+              <Button
+                className="w-full"
+                onClick={handleSaveAll}
+                disabled={saving === 'all' || loading}
+              >
+                {saving === 'all' ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Salvar Todas as Alterações
+              </Button>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

@@ -110,82 +110,119 @@ const Predefinicoes = () => {
 
   const hasAnyChange = configs.some((c) => String(c.config_value) !== editedValues[c.config_key]);
 
-  const renderConfigField = (config: SystemConfigItem) => {
-    const value = editedValues[config.config_key] ?? '';
-    const changed = isChanged(config.config_key);
+  // Find the matching boolean toggle for a text field (e.g. contact_telegram_username -> contact_telegram_enabled)
+  const findRelatedToggle = (key: string, allConfigs: SystemConfigItem[]): SystemConfigItem | undefined => {
+    // Extract base name: contact_telegram_username -> contact_telegram
+    const parts = key.split('_');
+    // Try removing last segment and appending _enabled
+    const baseName = parts.slice(0, -1).join('_');
+    return allConfigs.find(
+      (c) => c.config_type === 'boolean' && c.config_key === `${baseName}_enabled`
+    );
+  };
 
-    if (config.config_type === 'boolean') {
-      return (
-        <div
-          key={config.config_key}
-          className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium leading-tight">{config.description || config.config_key}</p>
-            <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">{config.config_key}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {saving === config.config_key && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-            <Switch
-              checked={value === 'true' || value === '1'}
-              onCheckedChange={(checked) => {
-                const newVal = checked ? 'true' : 'false';
-                setEditedValues((prev) => ({ ...prev, [config.config_key]: newVal }));
-                setSaving(config.config_key);
-                systemConfigAdminService.updateConfig(config.config_key, newVal, config.config_type)
-                  .then(() => {
-                    toast.success(`"${config.config_key}" atualizada!`);
-                    setConfigs((prev) =>
-                      prev.map((c) => c.config_key === config.config_key ? { ...c, config_value: newVal } : c)
-                    );
-                  })
-                  .catch(() => toast.error('Erro ao salvar'))
-                  .finally(() => setSaving(null));
-              }}
-              disabled={saving === config.config_key}
-            />
-          </div>
-        </div>
-      );
-    }
-
+  const renderToggleInline = (toggleConfig: SystemConfigItem) => {
+    const toggleValue = editedValues[toggleConfig.config_key] ?? '';
+    const isEnabled = toggleValue === 'true' || toggleValue === '1';
     return (
-      <div
-        key={config.config_key}
-        className="py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors space-y-1.5"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-tight">{config.description || config.config_key}</p>
-            <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">{config.config_key}</p>
-          </div>
-          {changed && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs text-primary hover:text-primary flex-shrink-0"
-              onClick={() => handleSave(config.config_key, config.config_type)}
-              disabled={saving === config.config_key}
-            >
-              {saving === config.config_key ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Save className="h-3 w-3 mr-1" />
-              )}
-              Salvar
-            </Button>
-          )}
-        </div>
-        <Input
-          value={value}
-          onChange={(e) =>
-            setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
-          }
-          type={config.config_type === 'number' ? 'number' : 'text'}
-          className={`h-8 text-sm ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
+      <div className="flex items-center gap-1.5 flex-shrink-0" title={isEnabled ? 'Ativado' : 'Desativado'}>
+        {saving === toggleConfig.config_key && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        <Switch
+          checked={isEnabled}
+          onCheckedChange={(checked) => {
+            const newVal = checked ? 'true' : 'false';
+            setEditedValues((prev) => ({ ...prev, [toggleConfig.config_key]: newVal }));
+            setSaving(toggleConfig.config_key);
+            systemConfigAdminService.updateConfig(toggleConfig.config_key, newVal, toggleConfig.config_type)
+              .then(() => {
+                toast.success(`"${toggleConfig.config_key}" atualizada!`);
+                setConfigs((prev) =>
+                  prev.map((c) => c.config_key === toggleConfig.config_key ? { ...c, config_value: newVal } : c)
+                );
+              })
+              .catch(() => toast.error('Erro ao salvar'))
+              .finally(() => setSaving(null));
+          }}
+          disabled={saving === toggleConfig.config_key}
+          className="scale-90"
         />
       </div>
     );
+  };
+
+  // Render grouped configs: text fields get their boolean toggle inline
+  const renderCategoryConfigs = (categoryConfigs: SystemConfigItem[]) => {
+    // Collect keys of booleans that are paired with a text field so we skip rendering them standalone
+    const pairedBooleanKeys = new Set<string>();
+    categoryConfigs.forEach((c) => {
+      if (c.config_type !== 'boolean') {
+        const toggle = findRelatedToggle(c.config_key, categoryConfigs);
+        if (toggle) pairedBooleanKeys.add(toggle.config_key);
+      }
+    });
+
+    return categoryConfigs
+      .filter((c) => !pairedBooleanKeys.has(c.config_key)) // skip paired booleans
+      .map((config) => {
+        const value = editedValues[config.config_key] ?? '';
+        const changed = isChanged(config.config_key);
+
+        // Standalone boolean (no paired text field)
+        if (config.config_type === 'boolean') {
+          return (
+            <div
+              key={config.config_key}
+              className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-tight">{config.description || config.config_key}</p>
+              </div>
+              {renderToggleInline(config)}
+            </div>
+          );
+        }
+
+        // Text/number field — check for paired toggle
+        const relatedToggle = findRelatedToggle(config.config_key, categoryConfigs);
+
+        return (
+          <div
+            key={config.config_key}
+            className="py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors space-y-1.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium leading-tight flex-1 min-w-0">{config.description || config.config_key}</p>
+              {changed && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-primary hover:text-primary flex-shrink-0"
+                  onClick={() => handleSave(config.config_key, config.config_type)}
+                  disabled={saving === config.config_key}
+                >
+                  {saving === config.config_key ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="h-3 w-3 mr-1" />
+                  )}
+                  Salvar
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={value}
+                onChange={(e) =>
+                  setEditedValues((prev) => ({ ...prev, [config.config_key]: e.target.value }))
+                }
+                type={config.config_type === 'number' ? 'number' : 'text'}
+                className={`h-8 text-sm flex-1 ${changed ? 'border-primary ring-1 ring-primary/20' : ''}`}
+              />
+              {relatedToggle && renderToggleInline(relatedToggle)}
+            </div>
+          </div>
+        );
+      });
   };
 
   return (
@@ -278,7 +315,7 @@ const Predefinicoes = () => {
             <TabsContent key={cat} value={cat} className="mt-3">
               <Card>
                 <CardContent className="p-2 sm:p-3 divide-y divide-border/50">
-                  {groupedConfigs[cat].map(renderConfigField)}
+                  {renderCategoryConfigs(groupedConfigs[cat])}
                 </CardContent>
               </Card>
             </TabsContent>

@@ -175,7 +175,7 @@ class SystemConfigService {
     private function valueToString($value, $type) {
         switch ($type) {
             case 'boolean':
-                return $value ? 'true' : 'false';
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
             case 'json':
                 return json_encode($value);
             default:
